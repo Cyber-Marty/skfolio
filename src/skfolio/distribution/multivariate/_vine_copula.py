@@ -1255,23 +1255,27 @@ def _propagate_samples(
         if isinstance(node1, RootNode) and isinstance(node2, RootNode):
             if is_left:
                 x = np.stack([node.u, node2.pseudo_values]).T
-                node1.pseudo_values = _inverse_partial_derivative(edge, x, is_count)
+                node1.pseudo_values = _inverse_partial_derivative(
+                    edge, x, is_count, first_margin=False
+                )
             else:
-                x = np.stack([node.v, node1.pseudo_values]).T
-                node2.pseudo_values = _inverse_partial_derivative(edge, x, is_count)
+                x = np.stack([node1.pseudo_values, node.v]).T
+                node2.pseudo_values = _inverse_partial_derivative(
+                    edge, x, is_count, first_margin=True
+                )
         elif isinstance(node1, ChildNode) and isinstance(node2, ChildNode):
             is_left1, is_left2 = node1.ref.shared_node_is_left(node2.ref)
             if is_left:
                 x = np.stack([node.u, node2.v if is_left2 else node2.u]).T
-                u = _inverse_partial_derivative(edge, x, is_count)
+                u = _inverse_partial_derivative(edge, x, is_count, first_margin=False)
                 if is_left1:
                     node1.v = u
                 else:
                     node1.u = u
                 queue.appendleft((node1, not is_left1))
             else:
-                x = np.stack([node.v, node1.v if is_left1 else node1.u]).T
-                u = _inverse_partial_derivative(edge, x, is_count)
+                x = np.stack([node1.v if is_left1 else node1.u, node.v]).T
+                u = _inverse_partial_derivative(edge, x, is_count, first_margin=True)
                 if is_left2:
                     node2.v = u
                 else:
@@ -1280,9 +1284,9 @@ def _propagate_samples(
 
 
 def _inverse_partial_derivative(
-    edge: Edge, X: FloatArray, is_count: bool
+    edge: Edge, X: FloatArray, is_count: bool, first_margin: bool = False
 ) -> FloatArray:
     """Inverse partial derivative of an Edge copula."""
     if is_count:
         return np.array([np.nan])
-    return edge.copula.inverse_partial_derivative(X)
+    return edge.copula.inverse_partial_derivative(X, first_margin=first_margin)

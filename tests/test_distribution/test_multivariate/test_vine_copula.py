@@ -1822,3 +1822,33 @@ def test_vine_marginal_plot_selectors(
 def test_vine_marginal_plot_invalid_selectors(small_model, subset, match):
     with pytest.raises(ValueError, match=match):
         small_model.plot_marginal_distributions(subset=subset)
+
+
+@pytest.mark.parametrize("central", [[0], [3]])
+def test_vine_sample_right_branch_rotated_copulas(central):
+    rng = np.random.default_rng(123)
+    X_u = rng.uniform(size=(500, 4))
+    vine = VineCopula(
+        fit_marginals=False,
+        central_assets=central,
+        copula_candidates=[ClaytonCopula()],
+        random_state=42,
+    ).fit(X_u)
+
+    for t_idx, tree in enumerate(vine.trees_):
+        for e_idx, edge in enumerate(tree.edges):
+            copula = ClaytonCopula(random_state=0)
+            copula.theta_ = 8.0
+            copula.rotation_ = (
+                CopulaRotation.R90 if (t_idx + e_idx) % 2 == 0 else CopulaRotation.R270
+            )
+            edge.copula = copula
+
+    ref = ClaytonCopula(random_state=0)
+    ref.theta_ = 8.0
+    ref.rotation_ = CopulaRotation.R90
+    expected_ll = 6.0 * float(np.mean(ref.score_samples(ref.sample(n_samples=20_000))))
+
+    samples = vine.sample(n_samples=15_000)
+    actual_ll = float(np.mean(vine.score_samples(samples)))
+    assert abs(actual_ll - expected_ll) < 0.35
